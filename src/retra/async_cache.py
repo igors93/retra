@@ -142,10 +142,7 @@ class AsyncCache(Cache):
 
             _store_version_fn: Callable[[], int]
             store_version_attr = getattr(self._store, "version", None)
-            if callable(store_version_attr):
-                _store_version_fn = store_version_attr
-            else:
-                _store_version_fn = lambda: 0  # noqa: E731
+            _store_version_fn = store_version_attr if callable(store_version_attr) else lambda: 0
 
             dependency_expression = _dependency_expression(len(dependency_tuple))
             validity_parts = [

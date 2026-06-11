@@ -553,10 +553,7 @@ class Cache:
             # slot is automatically invalidated after eviction, deletion, or clear.
             _store_version_fn: Callable[[], int]
             store_version_attr = getattr(self._store, "version", None)
-            if callable(store_version_attr):
-                _store_version_fn = store_version_attr
-            else:
-                _store_version_fn = lambda: 0  # noqa: E731
+            _store_version_fn = store_version_attr if callable(store_version_attr) else lambda: 0
 
             # Also update the slot in the existing-record path inside compute_and_store.
             # The closure above already uses _store_version_fn, so the lambda below closes
