@@ -1,4 +1,4 @@
-"""Public serializer implementations."""
+"""Serializer exports."""
 
 from .json import JsonSerializer
 from .pickle import PickleSerializer

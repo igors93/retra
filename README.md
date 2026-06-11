@@ -1,86 +1,92 @@
 # Retra
 
-Retra is a small, modular cache library for Python. It stores computed values in memory,
-individual files, or SQLite so repeated work can be avoided.
+Retra is a precision-first cache and memoization library written entirely in Python.
+It is designed so that a memory-cache hit performs only the work required to prove that the
+cached value still belongs to the exact call and is still valid.
 
-> Status: early alpha. The public API is intentionally small, but may still change before 1.0.
+> Status: alpha. Version 0.2 is a complete rewrite and is intentionally incompatible with
+> the original experimental architecture.
 
-## Features
+## Core principles
 
-- Manual `get`, `set`, `delete`, and `clear` operations.
-- Function caching through `@cache.cached(...)`.
-- Time-to-live (TTL) support.
-- Memory, file, and SQLite backends.
-- JSON and Pickle serializers.
-- Deterministic function keys.
-- Per-key locks to reduce duplicate work inside one process.
-- Basic hit, miss, write, expiration, deletion, and error statistics.
-- Fail-open behavior when cache infrastructure is unavailable.
+- Python objects are stored directly in memory; memory hits never serialize or deserialize.
+- Function signatures are inspected once, when a decorator is created.
+- Decorated wrappers use compiled call plans and specialized key plans.
+- Exact typed keys keep `True`, `1`, `1.0`, `0.0`, and `-0.0` distinct.
+- Full keys prove identity; digests are only persistent-storage indexes.
+- Generation counters invalidate groups of values in O(1).
+- Locks are kept out of the normal hit path whenever the selected engine permits it.
+- Persistent stores are explicit and never hidden behind a memory-only cache.
 
 ## Installation
 
-From the project directory:
-
-```bash
-python -m pip install -e .
-```
-
-For development:
-
 ```bash
 python -m pip install -e ".[dev]"
-pytest
 ```
 
-## Basic usage
+## Fast memory cache
 
 ```python
 from retra import Cache
-from retra.backends import MemoryBackend
 
-cache = Cache(MemoryBackend())
+cache = Cache.memory(
+    max_items=100_000,
+    concurrency="single",
+    value_mode="frozen",
+    stats="off",
+)
 
-cache.set("user:42", {"name": "Ada"}, ttl=60)
-print(cache.get("user:42"))
+@cache.cached()
+def notional(price_ticks: int, quantity: int) -> int:
+    return price_ticks * quantity
+
+assert notional(125_500, 4) == 502_000
+assert notional(125_500, 4) == 502_000  # Memory hit.
 ```
 
-## Function caching
+## Generation-based invalidation
 
 ```python
-from retra import Cache
-from retra.backends import MemoryBackend
+market = cache.generation("market")
 
-cache = Cache(MemoryBackend())
+@cache.cached(dependencies=(market,))
+def signal(instrument_id: int) -> int:
+    return instrument_id * 10
 
-@cache.cached(ttl=30)
-def expensive_sum(left: int, right: int) -> int:
-    return left + right
-
-assert expensive_sum(2, 3) == 5
-assert expensive_sum(2, 3) == 5  # Returned from cache.
+signal(7)
+market.advance()  # Every dependent result becomes invalid immediately.
+signal(7)         # Recomputed.
 ```
 
 ## Persistent cache
 
 ```python
 from retra import Cache
-from retra.backends import SQLiteBackend
 
-with Cache(SQLiteBackend(".cache/retra.db")) as cache:
-    cache.set("report:today", {"status": "ready"}, ttl=300)
+cache = Cache.sqlite(".cache/retra.db")
+cache.set("report:today", {"status": "ready"}, ttl="5m")
 ```
 
-## Serialization warning
+## Explicit two-tier cache
 
-`PickleSerializer` supports many Python objects, but Pickle data must only be loaded from
-trusted storage. Use `JsonSerializer` when interoperability and safer data handling matter
-more than support for arbitrary Python objects.
+```python
+cache = Cache.tiered(
+    front=Cache.memory_store(max_items=10_000),
+    backing=Cache.sqlite_store(".cache/retra.db"),
+)
+```
 
-## Current limitations
+A tiered cache may perform disk I/O on a front-cache miss. Use a memory-only cache when a
+request must never touch persistent storage.
 
-- Decorated asynchronous functions are not supported yet.
-- Per-key locking coordinates threads in one process, not independent processes.
-- File backend writes are atomic, but process-wide lock coordination is intentionally left to
-  a future release.
+## Development
 
-See the `docs/` directory for architecture and API details.
+```bash
+pytest
+ruff check .
+mypy
+python benchmarks/bench_hot_path.py
+```
+
+Read `docs/architecture.md`, `docs/performance.md`, and `docs/precision.md` before changing
+the hot path.

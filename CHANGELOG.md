@@ -1,22 +1,25 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## 0.2.0a1
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
-uses semantic versioning.
+This release is a complete rewrite. The previous backend-first architecture was removed.
 
-## [Unreleased]
+- Added the Retra compiled-call architecture.
+- Added exact typed keys and canonical persistent keys.
+- Added constant, scalar, tuple, canonical, and custom key plans.
+- Added a one-entry inline cache for decorated functions.
+- Added single-thread, snapshot/read-heavy, and locked engines.
+- Added O(1) generation-based invalidation.
+- Added reference, frozen, and copy value modes.
+- Added striped miss gates and async miss gates.
+- Added direct-object memory storage with no serialization.
+- Added binary file persistence with checksums and atomic replacement.
+- Added SQLite persistence with canonical-key collision verification.
+- Added explicit tiered memory + persistent storage.
+- Added off, basic, sampled, and exact statistics modes.
+- Added compiled sync decorators and async decorators.
+- Added benchmarks, migration guidance, and architecture documentation.
 
-## [0.1.0] - 2026-06-10
+## 0.1.0
 
-### Added
-
-- Core `Cache` API with TTL support.
-- Function caching decorator.
-- Memory, file, and SQLite backends.
-- JSON and Pickle serializers.
-- Deterministic function key generation.
-- Per-key thread locking.
-- Cache statistics.
-- Unit, contract, and integration tests.
-- Examples and architecture documentation.
+Initial experimental architecture. This architecture is no longer supported.

@@ -1,8 +1,10 @@
-"""Exception hierarchy exposed by Retra."""
+"""Retra-specific exception hierarchy."""
+
+from __future__ import annotations
 
 
 class RetraError(Exception):
-    """Base class for every exception raised by Retra."""
+    """Base class for every public Retra exception."""
 
 
 class ConfigurationError(RetraError):
@@ -10,16 +12,24 @@ class ConfigurationError(RetraError):
 
 
 class KeyGenerationError(RetraError):
-    """Raised when a deterministic cache key cannot be generated."""
+    """Raised when a deterministic key cannot be created."""
 
 
 class SerializationError(RetraError):
     """Raised when a value cannot be serialized or deserialized."""
 
 
-class BackendError(RetraError):
-    """Raised when a backend operation fails."""
+class StoreError(RetraError):
+    """Raised when a cache store cannot complete an operation."""
 
 
-class CorruptedEntryError(BackendError):
-    """Raised when persisted cache data cannot be decoded safely."""
+class CorruptedEntryError(StoreError):
+    """Raised when persisted bytes fail structural or checksum validation."""
+
+
+class CacheClosedError(RetraError):
+    """Raised when an operation is attempted on a closed cache."""
+
+
+class GenerationRaceError(RetraError):
+    """Raised when dependencies keep changing while a value is computed."""

@@ -1,31 +1,62 @@
 """Retra public API."""
 
+from .async_cache import AsyncCache
 from .cache import Cache
-from .config import CacheConfig
-from .decorators import cached
-from .entry import CacheEntry
+from .config import CacheConfig, ConcurrencyMode, StatsMode
+from .constants import DO_NOT_CACHE, NEVER_EXPIRE
+from .decorators import CachedCallable
 from .exceptions import (
-    BackendError,
+    CacheClosedError,
     ConfigurationError,
     CorruptedEntryError,
+    GenerationRaceError,
     KeyGenerationError,
     RetraError,
     SerializationError,
+    StoreError,
 )
-from .stats import CacheStatsSnapshot
+from .generation import Generation
+from .internal.sentinel import MISSING
+from .observability import CacheEvent, EventBuffer, EventKind, StatsSnapshot
+from .policies.errors import ErrorMode
+from .policies.eviction import EvictionPolicy
+from .policies.freezing import FrozenDict, ValueMode
+from .serializers import JsonSerializer, PickleSerializer
+from .stores import FileStore, MemoryStore, SQLiteStore, TieredStore
 
-__version__ = "0.1.0"
+__version__ = "0.2.0a1"
 
 __all__ = [
-    "BackendError",
+    "DO_NOT_CACHE",
+    "MISSING",
+    "NEVER_EXPIRE",
+    "AsyncCache",
     "Cache",
+    "CacheClosedError",
     "CacheConfig",
-    "CacheEntry",
-    "CacheStatsSnapshot",
+    "CacheEvent",
+    "CachedCallable",
+    "ConcurrencyMode",
     "ConfigurationError",
     "CorruptedEntryError",
+    "ErrorMode",
+    "EventBuffer",
+    "EventKind",
+    "EvictionPolicy",
+    "FileStore",
+    "FrozenDict",
+    "Generation",
+    "GenerationRaceError",
+    "JsonSerializer",
     "KeyGenerationError",
+    "MemoryStore",
+    "PickleSerializer",
     "RetraError",
+    "SQLiteStore",
     "SerializationError",
-    "cached",
+    "StatsMode",
+    "StatsSnapshot",
+    "StoreError",
+    "TieredStore",
+    "ValueMode",
 ]

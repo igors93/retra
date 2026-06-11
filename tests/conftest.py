@@ -7,13 +7,13 @@ import pytest
 
 @dataclass
 class FakeClock:
-    current: float = 1_000.0
+    value: int = 1_000_000_000
 
-    def now(self) -> float:
-        return self.current
+    def now_ns(self) -> int:
+        return self.value
 
-    def advance(self, seconds: float) -> None:
-        self.current += seconds
+    def advance(self, nanoseconds: int) -> None:
+        self.value += nanoseconds
 
 
 @pytest.fixture

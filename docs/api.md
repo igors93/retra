@@ -1,67 +1,105 @@
-# API
+# API Guide
 
-## Cache
+## Memory cache
 
 ```python
-Cache(
-    backend,
-    *,
-    serializer=None,
-    config=None,
-    key_builder=None,
-    clock=None,
+from retra import Cache
+
+cache = Cache.memory(
+    profile="balanced",
+    max_items=100_000,
 )
 ```
 
-The default serializer is `PickleSerializer`, the default configuration is `CacheConfig()`, and
-the default key builder is `FunctionKeyBuilder()`.
-
-### Manual operations
+## Manual operations
 
 ```python
-cache.set("key", value, ttl=60)
-value = cache.get("key", default=None)
-exists = cache.contains("key")
-deleted = cache.delete("key")
-cache.clear()
+cache.set("user:42", {"name": "Ada"}, ttl="5m")
+value = cache.get("user:42")
+exists = cache.contains("user:42")
+cache.delete("user:42")
 ```
 
-`ttl=None` means no expiration. A TTL of zero skips storage. Negative values are rejected.
+`get()` returns `MISSING` by default when no valid value exists. This keeps a cached `None` distinct
+from a miss.
 
-### Compute-on-miss
+Batch operations:
 
 ```python
-value = cache.get_or_set("report", build_report, ttl=300)
+cache.set_many({"a": 1, "b": 2}, ttl="10s")
+values = cache.get_many(["a", "b", "c"])
+removed = cache.delete_many(["a", "b"])
 ```
 
-The factory is called only after two cache checks under a per-key lock.
-
-### Decorator
+## Decorators
 
 ```python
-@cache.cached(ttl=30, version="2")
-def calculate(value: int) -> int:
-    return value * 2
+@cache.cached(ttl="50ms")
+def calculate(price: int, quantity: int = 1) -> int:
+    return price * quantity
 ```
 
-Decorated functions receive helper attributes:
+The returned callable provides:
 
 ```python
-calculate.cache_key(10)
-calculate.cache_invalidate(10)
-calculate.cache_clear()
-calculate.cache_instance
+calculate.cache_key(100, 2)
+calculate.peek(100, 2)
+calculate.contains(100, 2)
+calculate.invalidate(100, 2)
+calculate.refresh(100, 2)
+calculate.bypass(100, 2)
+calculate.clear()
 ```
 
-These attributes are attached dynamically and are intended for runtime use.
+`refresh()` always recomputes. `bypass()` neither reads nor writes the cache. `clear()` increments the
+function generation and invalidates every call of that function in O(1).
 
-### Statistics
+## Dependencies
 
 ```python
-snapshot = cache.stats()
-print(snapshot.hits)
-print(snapshot.misses)
-print(snapshot.hit_rate)
+market = cache.generation("market")
+risk = cache.generation("risk")
+
+@cache.cached(dependencies=(market, risk))
+def signal(instrument_id: int) -> int:
+    ...
+
+market.advance()
 ```
 
-Use `cache.reset_stats()` to reset all counters.
+## Custom keys and ignored parameters
+
+```python
+@cache.cached(
+    key=lambda order, trace_id=None: order.identifier,
+    ignore_parameters=("trace_id",),
+)
+def process(order, trace_id=None):
+    ...
+```
+
+Use either a custom key or ignored parameters deliberately. Ignoring a parameter is correct only
+when it cannot affect the result.
+
+## Lifetimes
+
+```python
+from retra import DO_NOT_CACHE, NEVER_EXPIRE
+
+cache.set("a", 1, ttl=NEVER_EXPIRE)
+cache.set("b", 2, ttl=DO_NOT_CACHE)
+```
+
+Numeric `ttl=0` also skips storage. `None` means no expiration.
+
+## Async
+
+```python
+from retra import AsyncCache
+
+cache = AsyncCache.memory(profile="balanced")
+
+@cache.cached(ttl="1s")
+async def fetch(identifier: int):
+    ...
+```

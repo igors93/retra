@@ -1,62 +1,68 @@
-"""Structural contracts implemented by Retra components."""
+"""Structural contracts for Retra components."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from typing import Any, Protocol, runtime_checkable
+from collections.abc import Iterable, Mapping
+from typing import Any, Protocol, TypeVar, runtime_checkable
 
-from .entry import CacheEntry
+from .internal.clock import Clock
+from .records import CacheRecord
+
+T = TypeVar("T")
 
 
 @runtime_checkable
-class Backend(Protocol):
-    """Storage contract implemented by every backend."""
+class Store(Protocol):
+    """Object-level storage contract used by the cache coordinator."""
 
-    def get(self, key: str) -> CacheEntry | None:
-        """Return an entry or ``None`` when the key does not exist."""
+    persistent: bool
 
-    def set(self, entry: CacheEntry) -> None:
-        """Insert or replace one entry."""
+    @property
+    def clock(self) -> Clock:
+        """Return the clock used for entry deadlines."""
 
-    def delete(self, key: str) -> bool:
+    def get_record(self, key: object) -> CacheRecord[Any] | None:
+        """Return a record without applying function-generation validation."""
+
+    def get_metadata(self, key: object) -> CacheRecord[None] | None:
+        """Return entry metadata without deserializing the stored value when possible."""
+
+    def set_record(self, key: object, record: CacheRecord[Any]) -> int:
+        """Insert or replace a record and return the number of evictions."""
+
+    def delete(self, key: object) -> bool:
         """Delete one key and report whether it existed."""
 
     def clear(self) -> None:
-        """Remove all entries owned by this backend."""
+        """Remove all physical records."""
+
+    def contains_key(self, key: object) -> bool:
+        """Check physical key presence without loading a value when possible."""
+
+    def get_many(self, keys: Iterable[object]) -> dict[object, CacheRecord[Any]]:
+        """Return the records found for the supplied keys."""
+
+    def set_many(self, records: Mapping[object, CacheRecord[Any]]) -> int:
+        """Insert records and return the number of evictions."""
+
+    def delete_many(self, keys: Iterable[object]) -> int:
+        """Delete keys and return the number removed."""
+
+    def prune(self) -> int:
+        """Remove expired or excess records and return the number removed."""
 
     def close(self) -> None:
-        """Release backend resources."""
+        """Release resources."""
 
 
 @runtime_checkable
 class Serializer(Protocol):
-    """Convert Python objects to bytes and back."""
+    """Convert Python objects to bytes and restore them."""
+
+    name: str
 
     def dumps(self, value: Any) -> bytes:
-        """Serialize one value."""
+        """Serialize a Python object."""
 
     def loads(self, payload: bytes) -> Any:
-        """Deserialize one value."""
-
-
-@runtime_checkable
-class KeyBuilder(Protocol):
-    """Build deterministic keys for function calls."""
-
-    def build(
-        self,
-        function: Callable[..., Any],
-        args: tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-        *,
-        version: str | None = None,
-    ) -> str:
-        """Return a stable key for a function invocation."""
-
-
-@runtime_checkable
-class Clock(Protocol):
-    """Clock abstraction used to make expiration logic testable."""
-
-    def now(self) -> float:
-        """Return the current wall-clock timestamp."""
+        """Deserialize a Python object."""

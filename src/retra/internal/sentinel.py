@@ -1,8 +1,6 @@
-"""Private sentinel values."""
+"""Internal sentinel values."""
 
 from __future__ import annotations
-
-from typing import Final
 
 
 class _Missing:
@@ -12,4 +10,4 @@ class _Missing:
         return "MISSING"
 
 
-MISSING: Final = _Missing()
+MISSING = _Missing()

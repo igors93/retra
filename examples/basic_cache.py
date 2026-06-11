@@ -1,10 +1,11 @@
-"""Store and retrieve values manually."""
+from __future__ import annotations
 
-from retra import Cache
-from retra.backends import MemoryBackend
+from retra import MISSING, Cache
 
-cache = Cache(MemoryBackend())
-cache.set("user:42", {"name": "Ada Lovelace"}, ttl=60)
+cache = Cache.memory(profile="balanced", max_items=1_000)
 
-print(cache.get("user:42"))
-print(cache.stats().as_dict())
+cache.set("instrument:PETR4", {"tick_size": 1, "currency": "BRL"}, ttl="5m")
+
+value = cache.get("instrument:PETR4")
+assert value is not MISSING
+print(value)
