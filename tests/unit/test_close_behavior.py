@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from retra import Cache, MISSING
+from retra import Cache
 from retra.exceptions import CacheClosedError
 
 
 def _simple_cache() -> Cache:
-    return Cache.memory(concurrency="single", value_mode="reference", stats="off", inline_cache=False)
+    return Cache.memory(
+        concurrency="single", value_mode="reference", stats="off", inline_cache=False
+    )
 
 
 def test_decorated_function_raises_on_miss_after_close() -> None:

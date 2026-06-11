@@ -9,9 +9,7 @@ served when ALL of:
 
 from __future__ import annotations
 
-import pytest
-
-from retra import Cache, MISSING
+from retra import Cache
 from retra.config import ConcurrencyMode
 from retra.policies.eviction import EvictionPolicy
 from retra.stores import MemoryStore

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from retra import Cache, MISSING, CacheConfig
+from retra import MISSING, Cache, CacheConfig
 from retra.config import ConcurrencyMode
 from retra.policies.eviction import EvictionPolicy
 from retra.stores import MemoryStore

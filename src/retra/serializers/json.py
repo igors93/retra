@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..exceptions import SerializationError
-from ..policies.freezing import FrozenDict
 
 
 def _json_value(value: Any) -> Any:

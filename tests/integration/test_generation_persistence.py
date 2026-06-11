@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from retra import Cache, MISSING
+from retra import MISSING, Cache
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def test_function_generation_survives_restart(db_path) -> None:
     calls = 0
 
     @cache2.cached()
-    def compute(x: int) -> int:  # noqa: F811  (re-declares intentionally)
+    def compute(x: int) -> int:
         nonlocal calls
         calls += 1
         return x * 2

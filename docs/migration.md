@@ -1,7 +1,7 @@
-# Migration from Retra 0.1
+# Migration to Retra 0.1.0
 
-Version 0.2 is a full rewrite. The original architecture is intentionally discarded rather than
-supported through a compatibility layer.
+Version 0.1.0 is a full rewrite of the original experimental architecture. The old design is
+intentionally discarded rather than supported through a compatibility layer.
 
 ## Major changes
 
