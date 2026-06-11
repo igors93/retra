@@ -62,10 +62,10 @@ def cached(
 
             return cache.delete(cache_key(*args, **kwargs))
 
-        setattr(wrapper, "cache_key", cache_key)
-        setattr(wrapper, "cache_invalidate", cache_invalidate)
-        setattr(wrapper, "cache_clear", cache.clear)
-        setattr(wrapper, "cache_instance", cache)
+        wrapper.cache_key = cache_key
+        wrapper.cache_invalidate = cache_invalidate
+        wrapper.cache_clear = cache.clear
+        wrapper.cache_instance = cache
         return wrapper
 
     return decorator

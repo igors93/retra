@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterator
 from contextlib import contextmanager
 from threading import Lock, RLock
-from typing import Iterator
 
 
 class KeyLockRegistry:

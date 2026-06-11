@@ -53,8 +53,7 @@ class SQLiteBackend:
                 self._connection.execute("PRAGMA journal_mode = WAL")
             self._connection.execute(_SCHEMA)
             self._connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_retra_expires_at "
-                "ON retra_entries(expires_at)"
+                "CREATE INDEX IF NOT EXISTS idx_retra_expires_at ON retra_entries(expires_at)"
             )
             self._connection.commit()
         except (OSError, sqlite3.Error) as exc:
@@ -69,8 +68,7 @@ class SQLiteBackend:
             self._ensure_open()
             try:
                 row = self._connection.execute(
-                    "SELECT payload, created_at, expires_at "
-                    "FROM retra_entries WHERE key = ?",
+                    "SELECT payload, created_at, expires_at FROM retra_entries WHERE key = ?",
                     (key,),
                 ).fetchone()
             except sqlite3.Error as exc:
@@ -143,8 +141,7 @@ class SQLiteBackend:
             self._ensure_open()
             try:
                 cursor = self._connection.execute(
-                    "DELETE FROM retra_entries "
-                    "WHERE expires_at IS NOT NULL AND expires_at <= ?",
+                    "DELETE FROM retra_entries WHERE expires_at IS NOT NULL AND expires_at <= ?",
                     (float(now),),
                 )
                 self._connection.commit()

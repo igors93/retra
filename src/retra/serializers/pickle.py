@@ -26,6 +26,6 @@ class PickleSerializer:
 
     def loads(self, payload: bytes) -> Any:
         try:
-            return pickle.loads(payload)  # noqa: S301 - Retra only loads trusted cache data.
+            return pickle.loads(payload)
         except (pickle.PickleError, EOFError, AttributeError, ImportError, IndexError) as exc:
             raise SerializationError(f"could not unpickle payload: {exc}") from exc

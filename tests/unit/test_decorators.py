@@ -34,7 +34,7 @@ def test_decorated_value_can_be_invalidated(fake_clock) -> None:
         return number * 2
 
     assert value(4) == 8
-    invalidator = getattr(value, "cache_invalidate")
+    invalidator = value.cache_invalidate
     assert invalidator(4) is True
     assert value(4) == 8
     assert calls == 2
