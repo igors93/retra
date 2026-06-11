@@ -78,6 +78,7 @@ def compile_call_plan(
     typed: bool,
     ignore_parameters: Sequence[str],
     custom_key: Callable[..., object] | None,
+    persistent_store: bool = False,
 ) -> CompiledCallPlan:
     signature = inspect.signature(function)
     ignored = frozenset(ignore_parameters)
@@ -85,8 +86,17 @@ def compile_call_plan(
     if unknown:
         names = ", ".join(sorted(unknown))
         raise ValueError(f"ignored parameters are not present in the function signature: {names}")
+    base_identity = f"{function.__module__}.{function.__qualname__}"
+    if persistent_store:
+        # Stable identity for cross-session lookups. Code fingerprint distinguishes same-qualname
+        # functions with different bytecode (e.g., redefined functions, different lambdas).
+        code_fp = _code_fingerprint(function)
+        identity = f"{base_identity}:{code_fp}"
+    else:
+        # Runtime identity prevents closures/lambdas with identical qualnames from sharing cache.
+        identity = f"{base_identity}:{id(function)}"
     token = FunctionToken(
-        identity=f"{function.__module__}.{function.__qualname__}",
+        identity=identity,
         version=version or "1",
     )
     key_names = tuple(name for name in signature.parameters if name not in ignored)
@@ -120,3 +130,16 @@ def compile_call_plan(
 
 def component_function(typed: bool) -> Callable[[Any], object]:
     return exact_component if typed else native_component
+
+
+def _code_fingerprint(function: Callable[..., Any]) -> str:
+    """Return a short stable string derived from the function's compiled bytecode."""
+    import hashlib
+
+    code = getattr(function, "__code__", None)
+    if code is None:
+        return "0"
+    raw = getattr(code, "co_code", None) or getattr(code, "co_consts", b"")
+    if not isinstance(raw, bytes):
+        raw = str(raw).encode()
+    return hashlib.sha256(raw).hexdigest()[:12]

@@ -24,7 +24,7 @@ from .policies.freezing import FrozenDict, ValueMode
 from .serializers import JsonSerializer, PickleSerializer
 from .stores import FileStore, MemoryStore, SQLiteStore, TieredStore
 
-__version__ = "0.2.0a1"
+__version__ = "0.1.0"
 
 __all__ = [
     "DO_NOT_CACHE",

@@ -58,6 +58,7 @@ class AsyncCache(Cache):
                 typed=self._config.typed_keys,
                 ignore_parameters=ignore_parameters,
                 custom_key=key,
+                persistent_store=self._store.persistent,
             )
             function_generation = Generation(f"function:{plan.token.identity}:{plan.token.version}")
             dependency_tuple = tuple(dependencies)
@@ -89,6 +90,7 @@ class AsyncCache(Cache):
                             if self._config.inline_cache:
                                 slot.key = call_key
                                 slot.record = existing
+                                slot.store_version = _store_version_fn()
                             return cast(R, return_value(existing.value, self._config.value_mode))
 
                     if allow_existing:
@@ -128,13 +130,21 @@ class AsyncCache(Cache):
                     if written and self._config.inline_cache:
                         slot.key = call_key
                         slot.record = record
+                        slot.store_version = _store_version_fn()
                     return cast(R, return_value(prepared, self._config.value_mode))
 
             async def miss_handler(
                 call_key: object,
                 factory: Callable[[], Awaitable[R]],
             ) -> R:
+                self._ensure_open()
                 return await compute_and_store(call_key, factory, allow_existing=True)
+
+            _store_version_fn: Callable[[], int]
+            if hasattr(self._store, "version") and callable(self._store.version):  # type: ignore[union-attr]
+                _store_version_fn = self._store.version  # type: ignore[union-attr]
+            else:
+                _store_version_fn = lambda: 0  # noqa: E731
 
             dependency_expression = _dependency_expression(len(dependency_tuple))
             validity_parts = [
@@ -172,6 +182,7 @@ class AsyncCache(Cache):
                 "_on_hit": lambda: self._counters.increment("hits"),
                 "_read_value": lambda value: return_value(value, self._config.value_mode),
                 "_slot": slot,
+                "_store_version": _store_version_fn,
                 "_token": plan.token,
             }
             for index, dependency in enumerate(dependency_tuple):

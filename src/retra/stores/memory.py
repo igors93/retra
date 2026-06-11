@@ -17,7 +17,7 @@ from ..records import CacheRecord
 class MemoryStore:
     """Store Python objects directly without serialization."""
 
-    __slots__ = ("_engine", "clock")
+    __slots__ = ("_engine", "_version", "clock")
     persistent = False
 
     def __init__(
@@ -30,6 +30,7 @@ class MemoryStore:
         clock: Clock | None = None,
     ) -> None:
         self.clock = clock or MonotonicClock()
+        self._version: int = 0
         self._engine: MemoryEngine
         if concurrency is ConcurrencyMode.SINGLE:
             self._engine = SingleThreadEngine(max_items, eviction)
@@ -56,14 +57,24 @@ class MemoryStore:
             dependency_versions=record.dependency_versions,
         )
 
+    def version(self) -> int:
+        """Monotonic counter that increments on any structural change (set, delete, clear)."""
+        return self._version
+
     def set_record(self, key: object, record: CacheRecord[Any]) -> int:
-        return self._engine.set(key, record)
+        evicted = self._engine.set(key, record)
+        self._version += 1
+        return evicted
 
     def delete(self, key: object) -> bool:
-        return self._engine.delete(key)
+        deleted = self._engine.delete(key)
+        if deleted:
+            self._version += 1
+        return deleted
 
     def clear(self) -> None:
         self._engine.clear()
+        self._version += 1
 
     def contains_key(self, key: object) -> bool:
         return self._engine.contains(key)
@@ -72,10 +83,16 @@ class MemoryStore:
         return self._engine.get_many(keys)
 
     def set_many(self, records: Mapping[object, CacheRecord[Any]]) -> int:
-        return self._engine.set_many(records)
+        evicted = self._engine.set_many(records)
+        if records:
+            self._version += 1
+        return evicted
 
     def delete_many(self, keys: Iterable[object]) -> int:
-        return self._engine.delete_many(keys)
+        deleted = self._engine.delete_many(keys)
+        if deleted:
+            self._version += 1
+        return deleted
 
     def prune(self) -> int:
         now_ns = self.clock.now_ns()

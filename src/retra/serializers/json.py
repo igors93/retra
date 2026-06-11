@@ -11,10 +11,16 @@ from ..policies.freezing import FrozenDict
 
 
 def _json_value(value: Any) -> Any:
-    if isinstance(value, FrozenDict):
-        return {str(key): _json_value(item) for key, item in value.items()}
     if isinstance(value, Mapping):
-        return {str(key): _json_value(item) for key, item in value.items()}
+        result: dict[str, Any] = {}
+        for k, v in value.items():
+            if not isinstance(k, str):
+                raise ValueError(
+                    f"JSON serializer requires string mapping keys; got {type(k).__name__!r}. "
+                    "Use PickleSerializer or provide a custom key function."
+                )
+            result[k] = _json_value(v)
+        return result
     if isinstance(value, tuple):
         return [_json_value(item) for item in value]
     if isinstance(value, frozenset):

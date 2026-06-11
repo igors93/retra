@@ -65,7 +65,9 @@ class Cache:
         self._counters = Counters(self._config.stats, self._config.stats_sample_rate)
         self._events = event_buffer
         self._gate = MissGate(self._config.miss_locks, self._counters)
-        self._namespace_generation = Generation(f"namespace:{self._config.namespace}")
+        ns_key = f"namespace:{self._config.namespace}"
+        initial_ns = self._load_generation(ns_key)
+        self._namespace_generation = Generation(ns_key, initial=initial_ns)
         self._generations: dict[str, Generation] = {}
         self._manual_token = ManualToken(self._config.namespace)
         self._component = component_function(self._config.typed_keys)
@@ -82,10 +84,11 @@ class Cache:
     ) -> MemoryStore:
         from .policies.eviction import EvictionPolicy
 
+        effective = _effective_shards(max_items, shards)
         return MemoryStore(
             max_items=max_items,
             concurrency=ConcurrencyMode(concurrency),
-            shards=shards,
+            shards=effective,
             eviction=EvictionPolicy(eviction),
         )
 
@@ -163,11 +166,12 @@ class Cache:
             else:
                 raise ValueError("profile must be 'speed', 'precise', or 'balanced'")
 
+        effective = _effective_shards(max_items, shards)
         config = CacheConfig(
             namespace=namespace,
             concurrency=ConcurrencyMode(concurrency),
             max_items=max_items,
-            shards=shards,
+            shards=effective,
             miss_locks=miss_locks,
             eviction=EvictionPolicy(eviction),
             value_mode=ValueMode(value_mode),
@@ -180,7 +184,7 @@ class Cache:
         store = MemoryStore(
             max_items=max_items,
             concurrency=config.concurrency,
-            shards=shards,
+            shards=effective,
             eviction=config.eviction,
         )
         return cls(store, config=config, default_ttl=default_ttl)
@@ -412,13 +416,16 @@ class Cache:
     def invalidate_all(self) -> int:
         """Logically invalidate all entries in O(1) without walking the store."""
 
-        return self._namespace_generation.advance()
+        new_value = self._namespace_generation.advance()
+        self._save_generation(self._namespace_generation.name, new_value)
+        return new_value
 
     def clear(self) -> None:
         """Physically remove all records and advance the namespace generation."""
 
         self._ensure_open()
-        self._namespace_generation.advance()
+        new_value = self._namespace_generation.advance()
+        self._save_generation(self._namespace_generation.name, new_value)
         try:
             self._store.clear()
         except Exception as exc:
@@ -462,8 +469,11 @@ class Cache:
                 typed=self._config.typed_keys,
                 ignore_parameters=ignore_parameters,
                 custom_key=key,
+                persistent_store=self._store.persistent,
             )
-            function_generation = Generation(f"function:{plan.token.identity}:{plan.token.version}")
+            func_gen_name = f"function:{plan.token.identity}:{plan.token.version}"
+            initial_func_gen = self._load_generation(func_gen_name)
+            function_generation = Generation(func_gen_name, initial=initial_func_gen)
             dependency_tuple = tuple(dependencies)
             slot = InlineSlot()
             cacheable, ttl_ns = self._resolve_ttl(ttl)
@@ -494,6 +504,7 @@ class Cache:
                             if self._config.inline_cache:
                                 slot.key = call_key
                                 slot.record = existing
+                                slot.store_version = _store_version_fn()
                             return cast(R, return_value(existing.value, self._config.value_mode))
 
                     if allow_existing:
@@ -531,10 +542,24 @@ class Cache:
                     if written and self._config.inline_cache:
                         slot.key = call_key
                         slot.record = record
+                        slot.store_version = _store_version_fn()
                     return cast(R, return_value(prepared, self._config.value_mode))
 
             def miss_handler(call_key: object, factory: Callable[[], R]) -> R:
+                self._ensure_open()
                 return compute_and_store(call_key, factory, allow_existing=True)
+
+            # For memory stores the version counter tracks structural changes so the inline
+            # slot is automatically invalidated after eviction, deletion, or clear.
+            _store_version_fn: Callable[[], int]
+            if hasattr(self._store, "version") and callable(self._store.version):  # type: ignore[union-attr]
+                _store_version_fn = self._store.version  # type: ignore[union-attr]
+            else:
+                _store_version_fn = lambda: 0  # noqa: E731
+
+            # Also update the slot in the existing-record path inside compute_and_store.
+            # The closure above already uses _store_version_fn, so the lambda below closes
+            # over the same function object.
 
             component = component_function(self._config.typed_keys)
             dependency_expression = _dependency_expression(len(dependency_tuple))
@@ -574,6 +599,7 @@ class Cache:
                 "_on_hit": lambda: self._counters.increment("hits"),
                 "_read_value": lambda value: return_value(value, self._config.value_mode),
                 "_slot": slot,
+                "_store_version": _store_version_fn,
                 "_token": plan.token,
             }
             for index, dependency in enumerate(dependency_tuple):
@@ -624,7 +650,8 @@ class Cache:
                 return function(*args, **kwargs)
 
             def clear_function() -> None:
-                function_generation.advance()
+                new_val = function_generation.advance()
+                self._save_generation(function_generation.name, new_val)
                 slot.clear()
 
             wrapper_any.cache_key = cache_key
@@ -729,6 +756,42 @@ class Cache:
     def _ensure_open(self) -> None:
         if self._closed:
             raise CacheClosedError("cache is closed")
+
+    def _load_generation(self, name: str) -> int:
+        """Return the persisted generation value from the store, if supported."""
+        get_gen = getattr(self._store, "get_generation", None)
+        if callable(get_gen):
+            try:
+                return get_gen(name)
+            except Exception:
+                pass
+        return 0
+
+    def _save_generation(self, name: str, value: int) -> None:
+        """Persist a generation value to the store, if supported."""
+        set_gen = getattr(self._store, "set_generation", None)
+        if callable(set_gen):
+            try:
+                set_gen(name, value)
+            except Exception as exc:
+                logger.warning("could not persist generation %r: %s", name, exc)
+
+
+def _effective_shards(max_items: int, requested_shards: int) -> int:
+    """Return the largest power of two that is at most both max_items and requested_shards.
+
+    When max_items < requested_shards, using all shards would give each shard a capacity of 1
+    but produce a total capacity much greater than max_items. Clamping ensures the store
+    actually respects the configured limit.
+    """
+    cap = min(max_items, requested_shards)
+    if cap <= 0:
+        return 1
+    # Round down to the nearest power of two.
+    result = 1
+    while result * 2 <= cap:
+        result *= 2
+    return result
 
 
 def _dependency_expression(count: int) -> str:

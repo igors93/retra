@@ -4,8 +4,9 @@ Retra is a precision-first cache and memoization library written entirely in Pyt
 It is designed so that a memory-cache hit performs only the work required to prove that the
 cached value still belongs to the exact call and is still valid.
 
-> Status: alpha. Version 0.2 is a complete rewrite and is intentionally incompatible with
-> the original experimental architecture.
+> **Status: alpha — 0.1.0.** This is the first PyPI-ready release of the current
+> architecture. APIs may still change before 1.0. Not recommended for production use without
+> pinning the exact version.
 
 ## Core principles
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "retra"
-version = "0.2.0a1"
+version = "0.1.0"
 description = "Retra: a precision-first, low-overhead cache and memoization library for Python."
 readme = "README.md"
 requires-python = ">=3.11"

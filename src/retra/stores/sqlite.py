@@ -30,7 +30,11 @@ CREATE TABLE IF NOT EXISTS retra_entries (
     function_generation INTEGER NOT NULL,
     dependency_versions BLOB NOT NULL,
     PRIMARY KEY (digest, canonical_key)
-)
+);
+CREATE TABLE IF NOT EXISTS retra_generations (
+    name TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
+);
 """
 _DEPENDENCY = struct.Struct(">q")
 
@@ -122,7 +126,7 @@ class SQLiteStore:
         try:
             self._write_connection = self._connect()
             self._configure(self._write_connection, enable_wal=enable_wal)
-            self._write_connection.execute(_SCHEMA)
+            self._write_connection.executescript(_SCHEMA)
             self._write_connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_retra_deadline ON retra_entries(deadline_ns)"
             )
@@ -413,6 +417,35 @@ class SQLiteStore:
                 connection.close()
             self._write_connection.close()
             self._closed = True
+
+    def get_generation(self, name: str) -> int:
+        """Return the persisted generation value for *name*, or 0 if not found."""
+        try:
+            row = (
+                self._read_connection()
+                .execute("SELECT value FROM retra_generations WHERE name = ?", (name,))
+                .fetchone()
+            )
+        except sqlite3.Error as exc:
+            raise StoreError(f"could not read generation {name!r}: {exc}") from exc
+        return int(row[0]) if row is not None else 0
+
+    def set_generation(self, name: str, value: int) -> None:
+        """Persist a generation value so it survives process restart."""
+        with self._write_lock:
+            self._ensure_open()
+            try:
+                self._write_connection.execute(
+                    """
+                    INSERT INTO retra_generations (name, value) VALUES (?, ?)
+                    ON CONFLICT(name) DO UPDATE SET value = excluded.value
+                    """,
+                    (name, value),
+                )
+                self._write_connection.commit()
+            except sqlite3.Error as exc:
+                self._write_connection.rollback()
+                raise StoreError(f"could not save generation {name!r}: {exc}") from exc
 
     def _ensure_open(self) -> None:
         if self._closed:

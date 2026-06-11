@@ -10,17 +10,24 @@ from .call_plan import CompiledCallPlan
 
 
 class InlineSlot:
-    """One-entry inline cache owned by a decorated function."""
+    """One-entry inline cache owned by a decorated function.
 
-    __slots__ = ("key", "record")
+    ``store_version`` tracks the MemoryStore's structural-change counter so the slot is
+    automatically invalidated after eviction, deletion, or clear — even when no generation
+    counter was advanced.
+    """
+
+    __slots__ = ("key", "record", "store_version")
 
     def __init__(self) -> None:
         self.key: object | None = None
         self.record: CacheRecord[Any] | None = None
+        self.store_version: int = -1
 
     def clear(self) -> None:
         self.key = None
         self.record = None
+        self.store_version = -1
 
 
 def compile_sync_wrapper(
@@ -44,11 +51,17 @@ def compile_sync_wrapper(
     if inline_enabled:
         inline_source = f"""
     _record = _slot.record
-    if _slot.key == _key and _record is not None and ({validity_expression}):
+    if (_slot.key == _key and _record is not None
+            and _slot.store_version == _store_version()
+            and ({validity_expression})):
         {hit_statement}
         return {return_expression}
 """
-        inline_update = "\n        _slot.key = _key\n        _slot.record = _record"
+        inline_update = (
+            "\n        _slot.key = _key"
+            "\n        _slot.record = _record"
+            "\n        _slot.store_version = _store_version()"
+        )
 
     source = f"""
 def wrapper({rendered.parameters}):
@@ -104,11 +117,17 @@ def compile_async_wrapper(
     if inline_enabled:
         inline_source = f"""
     _record = _slot.record
-    if _slot.key == _key and _record is not None and ({validity_expression}):
+    if (_slot.key == _key and _record is not None
+            and _slot.store_version == _store_version()
+            and ({validity_expression})):
         {hit_statement}
         return {return_expression}
 """
-        inline_update = "\n        _slot.key = _key\n        _slot.record = _record"
+        inline_update = (
+            "\n        _slot.key = _key"
+            "\n        _slot.record = _record"
+            "\n        _slot.store_version = _store_version()"
+        )
 
     source = f"""
 async def wrapper({rendered.parameters}):
