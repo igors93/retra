@@ -552,8 +552,9 @@ class Cache:
             # For memory stores the version counter tracks structural changes so the inline
             # slot is automatically invalidated after eviction, deletion, or clear.
             _store_version_fn: Callable[[], int]
-            if hasattr(self._store, "version") and callable(self._store.version):  # type: ignore[union-attr]
-                _store_version_fn = self._store.version  # type: ignore[union-attr]
+            store_version_attr = getattr(self._store, "version", None)
+            if callable(store_version_attr):
+                _store_version_fn = store_version_attr
             else:
                 _store_version_fn = lambda: 0  # noqa: E731
 
@@ -762,7 +763,7 @@ class Cache:
         get_gen = getattr(self._store, "get_generation", None)
         if callable(get_gen):
             try:
-                return get_gen(name)
+                return int(get_gen(name))
             except Exception:
                 pass
         return 0

@@ -141,8 +141,9 @@ class AsyncCache(Cache):
                 return await compute_and_store(call_key, factory, allow_existing=True)
 
             _store_version_fn: Callable[[], int]
-            if hasattr(self._store, "version") and callable(self._store.version):  # type: ignore[union-attr]
-                _store_version_fn = self._store.version  # type: ignore[union-attr]
+            store_version_attr = getattr(self._store, "version", None)
+            if callable(store_version_attr):
+                _store_version_fn = store_version_attr
             else:
                 _store_version_fn = lambda: 0  # noqa: E731
 
